@@ -106,6 +106,8 @@ data class CardUi(
     val forceToggle: Boolean? = null,
     /** Water heater card extras (tank glow, activity chip, inlet); null for every other kind. */
     val heater: HeaterView? = null,
+    /** Hub-owned group card: commands go to [id] directly, the hub fans out (hub cover groups spec §2.4). */
+    val isHubGroup: Boolean = false,
 ) {
     val isGroup: Boolean get() = members.isNotEmpty()
 }

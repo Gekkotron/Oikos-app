@@ -4,6 +4,7 @@ import com.gekkotron.oikos.model.Area
 import com.gekkotron.oikos.model.Capabilities
 import com.gekkotron.oikos.model.CoverState
 import com.gekkotron.oikos.model.Entity
+import com.gekkotron.oikos.model.HubGroup
 import com.gekkotron.oikos.model.Kind
 import com.gekkotron.oikos.model.StateValue
 import com.gekkotron.oikos.model.UNASSIGNED_AREA
@@ -82,6 +83,40 @@ object RoomGroups {
             members = members,
         )
     }
+
+    /**
+     * Hub cover groups spec §2.3: swaps a hub group's cover tile for a wide group card built from
+     * its (would-be visible) members, and removes those members from [cards]. Groups whose entity is
+     * absent, whose kind is not supported here (shutters only in v1), or that have no renderable
+     * member on Home are left untouched.
+     */
+    fun foldHubGroups(cards: List<CardUi>, hubGroups: Map<String, HubGroup>): List<CardUi> {
+        if (hubGroups.isEmpty()) return cards
+        val byId = cards.associateBy { it.id }
+        val plan = hubGroups.values.mapNotNull { spec ->
+            if (spec.kind != Kind.COVER) return@mapNotNull null
+            val groupCard = byId[groupEntityId(spec.id)] ?: return@mapNotNull null
+            val members = spec.members.mapNotNull { byId[it] }
+            if (members.isEmpty()) return@mapNotNull null
+            val area = members.map { it.areaId }.distinct().singleOrNull() ?: UNASSIGNED_AREA
+            val folded = group(area, Kind.COVER, members, spec.name, favorite = groupCard.ui.favorite)
+                .copy(id = groupCard.id, isHubGroup = true, ui = groupCard.ui)
+            Triple(groupCard.id, members.map { it.id }.toSet(), folded)
+        }
+        if (plan.isEmpty()) return cards
+        val replacements = plan.associate { it.first to it.third }
+        val toRemove = plan.flatMap { it.second }.toSet()
+        return cards.mapNotNull { card ->
+            when {
+                card.id in replacements -> replacements[card.id]
+                card.id in toRemove -> null
+                else -> card
+            }
+        }
+    }
+
+    /** Unique id of the hub group entity for group id [id] (`oikos/cover/group/<id>/config`'s `unique_id`). */
+    fun groupEntityId(id: String): String = "group_$id"
 
     private fun coverValue(members: List<CardUi>): CardValue.CoverGroup {
         val states = members.map { (it.state as? StateValue.Cover)?.state }

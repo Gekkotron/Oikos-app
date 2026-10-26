@@ -49,6 +49,16 @@ class GroupCommandsTest {
     }
 
     @Test
+    fun `a hub group routes every command to the group entity, hub fans out`() {
+        // The sheet only cares about targets(); isHubGroup=true short-circuits member iteration.
+        val hub = covers.copy(id = "group_living", isHubGroup = true)
+        assertEquals(listOf("group_living"), GroupCommands.targets(hub, Command.Open))
+        assertEquals(listOf("group_living"), GroupCommands.targets(hub, Command.Stop))
+        assertEquals(listOf("group_living"), GroupCommands.targets(hub, Command.SetPosition(50)))
+        assertEquals(listOf("group_living"), GroupCommands.targets(hub, Command.TurnOff))
+    }
+
+    @Test
     fun `toggle is absolute - any on turns all off`() {
         val lights = group(
             testEntity("x", Kind.LIGHT, area = "living"), testEntity("y", Kind.LIGHT, area = "living"),

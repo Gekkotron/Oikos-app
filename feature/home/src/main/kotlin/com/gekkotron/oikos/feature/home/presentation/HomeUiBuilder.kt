@@ -5,6 +5,7 @@ import com.gekkotron.oikos.model.Area
 import com.gekkotron.oikos.model.CoverState
 import com.gekkotron.oikos.model.Entity
 import com.gekkotron.oikos.model.EntityState
+import com.gekkotron.oikos.model.HubGroup
 import com.gekkotron.oikos.model.Kind
 import com.gekkotron.oikos.model.Placement
 import com.gekkotron.oikos.model.StateValue
@@ -35,6 +36,8 @@ object HomeUiBuilder {
         /** Non-blank: search every room, hidden devices included, instead of [selected]. */
         query: String = "",
         historyEnabled: Boolean = false,
+        /** Hub-owned groups keyed by group id (hub cover groups spec §2.3). */
+        hubGroups: Map<String, HubGroup> = emptyMap(),
     ): HomeUiState {
         val names = entities.mapValues { (_, e) -> displayName(e, labels) }
         val areaIndex = areas.withIndex().associate { (i, a) -> a.id to i }
@@ -83,10 +86,14 @@ object HomeUiBuilder {
         // Room groups spec §2.1: groups show in All, a room, and Favourites (a favorited group counts). Hidden and search stay flat.
         val folds = query.isBlank() && effective != RoomFilter.Hidden
         val cards = if (folds) {
+            // Hub cover groups spec §2.3: swap hub group tiles for wide cards + drop their members
+            // first; the client-side fold then runs over what remains, so a member cannot be
+            // double-grouped.
+            val hubFolded = RoomGroups.foldHubGroups(sorted, hubGroups)
             // Within each area block, lift group cards above individual devices. Stable sort keeps
             // the alphabetical intra-bucket order from the per-entity sort above; the explicit ui.order
             // pin still wins since it's the first key.
-            RoomGroups.fold(sorted, areas, groupFavorites).sortedWith(
+            RoomGroups.fold(hubFolded, areas, groupFavorites).sortedWith(
                 compareBy(
                     { it.ui.order ?: Int.MAX_VALUE },
                     { areaIndex[it.areaId] ?: Int.MAX_VALUE },

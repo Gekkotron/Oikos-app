@@ -10,6 +10,7 @@ import com.gekkotron.oikos.model.Diagnostic
 import com.gekkotron.oikos.model.DiagnosticSink
 import com.gekkotron.oikos.model.Entity
 import com.gekkotron.oikos.model.EntityState
+import com.gekkotron.oikos.model.HubGroup
 import com.gekkotron.oikos.model.Kind
 import com.gekkotron.oikos.model.OikosJson
 import com.gekkotron.oikos.model.StateValue
@@ -71,6 +72,7 @@ class MqttDiscoverySource(
     private val discovered = linkedMapOf<String, List<DiscoveredEntity>>() // config topic -> entities
     private val overrides = mutableMapOf<String, UiOverride>()
     private val voiceShortcuts = mutableMapOf<String, VoiceShortcut>()
+    private val hubGroupSpecs = mutableMapOf<String, HubGroup>() // group id -> spec
     private var areasDocument = AreasDocument()
 
     // What the broker is known to hold (its retained messages, or a publish it accepted). A failed write
@@ -108,6 +110,8 @@ class MqttDiscoverySource(
     override val link: StateFlow<LinkState> = transport.link
     private val _shortcuts = MutableStateFlow<Map<String, VoiceShortcut>>(emptyMap())
     override val shortcuts: StateFlow<Map<String, VoiceShortcut>> = _shortcuts.asStateFlow()
+    private val _hubGroups = MutableStateFlow<Map<String, HubGroup>>(emptyMap())
+    override val hubGroups: StateFlow<Map<String, HubGroup>> = _hubGroups.asStateFlow()
 
     // The hub publishes HA-discovery under its own `oikos/` prefix (alarm panel, groups, virtual
     // entities, …), beside whatever prefix a legacy controller like Jeedom publishes under; the app
@@ -224,7 +228,8 @@ class MqttDiscoverySource(
                 topic.endsWith("/config") && prefixes.any { topic.startsWith("$it/") } -> 0
                 topic.startsWith(UI_PREFIX) -> 1
                 topic.startsWith(VOICE_PREFIX) -> 2
-                else -> 3
+                topic.startsWith(HUB_GROUP_PREFIX) && topic.endsWith(HUB_GROUP_DEFINITION_SUFFIX) -> 3
+                else -> 4
             }
         }
         for ((topic, payload) in ordered) handle(MqttMessage(topic, payload.encodeToByteArray(), retained = true), restored = true)
@@ -236,6 +241,7 @@ class MqttDiscoverySource(
             addAll(discovered.keys)
             overrides.keys.forEach { add(UI_PREFIX + it) }
             voiceShortcuts.keys.forEach { add(VOICE_PREFIX + it) }
+            hubGroupSpecs.keys.forEach { add(HUB_GROUP_PREFIX + it + HUB_GROUP_DEFINITION_SUFFIX) }
             if (areasDocument.areas.isNotEmpty()) add(AREAS_TOPIC)
             addAll(store.subscriptionTopics())
         }
@@ -282,10 +288,13 @@ class MqttDiscoverySource(
                         confirmedOverrides.remove(it)
                     }
                     topic.startsWith(VOICE_PREFIX) -> voiceShortcuts.remove(topic.removePrefix(VOICE_PREFIX))
+                    topic.startsWith(HUB_GROUP_PREFIX) && topic.endsWith(HUB_GROUP_DEFINITION_SUFFIX) ->
+                        hubGroupSpecs.remove(hubGroupIdOf(topic))
                     else -> discovered.remove(topic)
                 }
             }
             _shortcuts.value = voiceShortcuts.toMap()
+            _hubGroups.value = hubGroupSpecs.toMap()
             restoredOnly.clear()
         }
         publishEntities()
@@ -316,6 +325,8 @@ class MqttDiscoverySource(
                 topic == AREAS_TOPIC -> onAreas(payload)
                 topic.startsWith(UI_PREFIX) -> onOverride(topic.removePrefix(UI_PREFIX), payload)
                 topic.startsWith(VOICE_PREFIX) -> onShortcut(topic.removePrefix(VOICE_PREFIX), payload)
+                topic.startsWith(HUB_GROUP_PREFIX) && topic.endsWith(HUB_GROUP_DEFINITION_SUFFIX) ->
+                    onHubGroupDefinition(hubGroupIdOf(topic), payload)
                 else -> when (val r = parseDiscovery(topic, payload)) {
                     DiscoveryResult.NotDiscovery -> store.onMessage(topic, payload, restored)
                     DiscoveryResult.Removed -> replaceDiscovered(topic, null)
@@ -345,6 +356,21 @@ class MqttDiscoverySource(
             confirmedAreas = document
         }
         publishEntities()
+    }
+
+    private fun onHubGroupDefinition(id: String, payload: String) {
+        synchronized(lock) {
+            if (payload.isBlank()) {
+                hubGroupSpecs.remove(id)
+            } else {
+                val spec = HubGroup.parse(id, payload)
+                if (spec != null) hubGroupSpecs[id] = spec else {
+                    hubGroupSpecs.remove(id)
+                    report("$HUB_GROUP_PREFIX$id$HUB_GROUP_DEFINITION_SUFFIX: invalid group spec")
+                }
+            }
+            _hubGroups.value = hubGroupSpecs.toMap()
+        }
     }
 
     private fun onShortcut(id: String, payload: String) {
@@ -460,11 +486,16 @@ class MqttDiscoverySource(
 
     private fun report(message: String) = diagnostics.report(Diagnostic("discovery", message))
 
+    private fun hubGroupIdOf(topic: String): String =
+        topic.removePrefix(HUB_GROUP_PREFIX).removeSuffix(HUB_GROUP_DEFINITION_SUFFIX)
+
     companion object {
         const val DEFAULT_PREFIX = "homeassistant"
         const val HUB_PREFIX = "oikos"
         const val UI_PREFIX = "oikos/ui/"
         const val VOICE_PREFIX = "oikos/voice/shortcut/"
+        const val HUB_GROUP_PREFIX = "oikos/group/"
+        const val HUB_GROUP_DEFINITION_SUFFIX = "/definition"
         const val AREAS_ID = "_areas"
         const val AREAS_TOPIC = UI_PREFIX + AREAS_ID
         val SUBSCRIPTION_DEBOUNCE: Duration = 500.milliseconds

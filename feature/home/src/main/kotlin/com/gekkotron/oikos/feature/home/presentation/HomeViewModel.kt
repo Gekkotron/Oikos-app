@@ -60,9 +60,10 @@ class HomeViewModel @Inject constructor(
         source.states(),
         source.areas,
         combine(savedState.getStateFlow(KEY_FILTER, RoomFilter.Favorites.key), savedState.getStateFlow(KEY_QUERY, ""), ::Pair),
-        combine(source.link, history.available, ::Pair),
-    ) { entities, states, areas, (key, query), (link, historyOn) ->
-        val ui = HomeUiBuilder.build(entities, states, areas, RoomFilter.fromKey(key), link, Locale.getDefault(), labels, query, historyOn)
+        combine(source.link, history.available, source.hubGroups, ::Triple),
+    ) { entities, states, areas, (key, query), linkHistoryHub ->
+        val (link, historyOn, hubGroups) = linkHistoryHub
+        val ui = HomeUiBuilder.build(entities, states, areas, RoomFilter.fromKey(key), link, Locale.getDefault(), labels, query, historyOn, hubGroups)
         // The selected chip may no longer exist (its last card was unhidden, its area emptied…); build()
         // already falls back to All for this state, but the saved key must follow, or a stale "hidden"
         // key comes back to life and jumps the screen back there as soon as something is hidden again.
@@ -179,7 +180,9 @@ class HomeViewModel @Inject constructor(
             val group = state.value.card(groupId)?.takeIf { it.isGroup } ?: return@launch
             if (group.members.any { it.stale }) return@launch _events.send(HomeEvent.WaitingForConnection)
             val ids = GroupCommands.targets(group, command).filter { only == null || it in only }
-            val names = group.members.associate { it.id to it.name }
+            // Hub cover groups spec §2.4: a hub group fails under its own id, so the snackbar reads the
+            // group's name instead of a bare "group_xyz".
+            val names = if (group.isHubGroup) mapOf(group.id to group.name) else group.members.associate { it.id to it.name }
             ids.forEach { groupSends[it] = GroupSend(groupId, group.kind, command, names) }
             val results = ids.map { id -> async { source.send(id, command) } }.awaitAll()
             results.firstOrNull { it is CommandResult.Rejected }?.let {

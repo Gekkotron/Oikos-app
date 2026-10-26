@@ -633,4 +633,44 @@ class MqttDiscoverySourceTest {
         assertEquals(Kind.LIGHT, e.kind)
         assertEquals(Kind.LIGHT, e.protocolKind)
     }
+
+    // --- Hub cover groups spec §2.2 ---
+
+    @Test
+    fun `a hub group definition payload surfaces in hubGroups`() = runTest {
+        val h = start()
+        h.transport.deliver(
+            "oikos/group/living/definition",
+            """{"name":"Living shutters","kind":"cover","members":["a","b"],"hideMembers":true}""",
+        )
+        runCurrent()
+        val spec = h.source.hubGroups.value.getValue("living")
+        assertEquals("Living shutters", spec.name)
+        assertEquals(Kind.COVER, spec.kind)
+        assertEquals(listOf("a", "b"), spec.members)
+        assertTrue(spec.hideMembers)
+    }
+
+    @Test
+    fun `an empty payload removes a known hub group`() = runTest {
+        val h = start()
+        h.transport.deliver(
+            "oikos/group/living/definition",
+            """{"name":"g","kind":"cover","members":["a"]}""",
+        )
+        runCurrent()
+        assertTrue("living" in h.source.hubGroups.value)
+        h.transport.deliver("oikos/group/living/definition", "")
+        runCurrent()
+        assertFalse("living" in h.source.hubGroups.value)
+    }
+
+    @Test
+    fun `an invalid hub group payload is reported and ignored`() = runTest {
+        val h = start()
+        h.transport.deliver("oikos/group/living/definition", "not-json")
+        runCurrent()
+        assertFalse("living" in h.source.hubGroups.value)
+        assertTrue(h.diagnostics.any { it.message.contains("invalid group spec") })
+    }
 }
