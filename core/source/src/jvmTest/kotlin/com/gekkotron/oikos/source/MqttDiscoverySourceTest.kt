@@ -73,9 +73,20 @@ class MqttDiscoverySourceTest {
     }
 
     @Test
-    fun `subscribes to discovery and overrides first`() = runTest {
+    fun `subscribes to the ha prefix and to oikos first`() = runTest {
         val h = start()
-        assertEquals(setOf("homeassistant/#", "oikos/ui/#", "oikos/voice/shortcut/#"), h.transport.subscriptionHistory.first())
+        assertEquals(setOf("homeassistant/#", "oikos/#"), h.transport.subscriptionHistory.first())
+    }
+
+    @Test
+    fun `oikos-prefix discovery becomes an entity`() = runTest {
+        val h = start()
+        h.transport.deliver(
+            "oikos/alarm_control_panel/alarm/house/config",
+            """{"unique_id":"oikos_alarm_house","command_topic":"oikos/alarm/panel/set","state_topic":"oikos/alarm/panel"}""",
+        )
+        runCurrent()
+        assertTrue("oikos_alarm_house" in h.source.entities.value)
     }
 
     @Test
@@ -87,7 +98,7 @@ class MqttDiscoverySourceTest {
         val light = h.source.entities.value.getValue(lightId)
         assertEquals("Lampe", light.name)
         assertEquals("Salon", light.area)
-        assertEquals(setOf("homeassistant/#", "oikos/ui/#", "oikos/voice/shortcut/#"), h.transport.subscriptions)
+        assertEquals(setOf("homeassistant/#", "oikos/#"), h.transport.subscriptions)
 
         settle()
         assertTrue("z2m/lampe" in h.transport.subscriptions)
@@ -516,9 +527,9 @@ class MqttDiscoverySourceTest {
     }
 
     @Test
-    fun `voice shortcut topic is subscribed with the ui prefix`() = runTest {
+    fun `voice shortcut topic is subscribed via the oikos prefix`() = runTest {
         val h = start()
-        assertEquals(setOf("homeassistant/#", "oikos/ui/#", "oikos/voice/shortcut/#"), h.transport.subscriptions)
+        assertEquals(setOf("homeassistant/#", "oikos/#"), h.transport.subscriptions)
     }
 
     @Test

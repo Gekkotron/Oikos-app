@@ -109,7 +109,11 @@ class MqttDiscoverySource(
     private val _shortcuts = MutableStateFlow<Map<String, VoiceShortcut>>(emptyMap())
     override val shortcuts: StateFlow<Map<String, VoiceShortcut>> = _shortcuts.asStateFlow()
 
-    private val baseFilters = setOf("$prefix/#", "$UI_PREFIX#", "$VOICE_PREFIX#")
+    // The hub publishes HA-discovery under its own `oikos/` prefix (alarm panel, groups, virtual
+    // entities, …), beside whatever prefix a legacy controller like Jeedom publishes under; the app
+    // reads both. `oikos/#` subsumes `oikos/ui/#` and `oikos/voice/shortcut/#` so they drop out.
+    private val prefixes: Set<String> = linkedSetOf(prefix, HUB_PREFIX)
+    private val baseFilters = prefixes.map { "$it/#" }.toSet()
     private val stateTopics = MutableStateFlow<Set<String>>(emptySet())
 
     private class Snapshot(val entities: Map<String, Entity>, val devices: Map<String, Device>, val areas: List<Area>)
@@ -217,7 +221,7 @@ class MqttDiscoverySource(
         // Configs first so state messages find their entity, then overrides, then states.
         val ordered = messages.entries.sortedBy { (topic, _) ->
             when {
-                topic.startsWith("$prefix/") && topic.endsWith("/config") -> 0
+                topic.endsWith("/config") && prefixes.any { topic.startsWith("$it/") } -> 0
                 topic.startsWith(UI_PREFIX) -> 1
                 topic.startsWith(VOICE_PREFIX) -> 2
                 else -> 3
@@ -240,7 +244,7 @@ class MqttDiscoverySource(
 
     /** An alarm panel's `code` is its PIN: it never goes to the cache (entity cache spec §1.5). */
     private fun redact(topic: String, payload: String): String? {
-        if (!topic.startsWith("$prefix/alarm_control_panel/")) return payload
+        if (prefixes.none { topic.startsWith("$it/alarm_control_panel/") }) return payload
         val config = try {
             OikosJson.parseToJsonElement(payload) as? JsonObject
         } catch (e: SerializationException) {
@@ -312,7 +316,7 @@ class MqttDiscoverySource(
                 topic == AREAS_TOPIC -> onAreas(payload)
                 topic.startsWith(UI_PREFIX) -> onOverride(topic.removePrefix(UI_PREFIX), payload)
                 topic.startsWith(VOICE_PREFIX) -> onShortcut(topic.removePrefix(VOICE_PREFIX), payload)
-                else -> when (val r = DiscoveryParser.parse(prefix, topic, payload)) {
+                else -> when (val r = parseDiscovery(topic, payload)) {
                     DiscoveryResult.NotDiscovery -> store.onMessage(topic, payload, restored)
                     DiscoveryResult.Removed -> replaceDiscovered(topic, null)
                     // Like HA: an invalid update is logged and the previously discovered entities are kept.
@@ -385,6 +389,14 @@ class MqttDiscoverySource(
         publishEntities()
     }
 
+    private fun parseDiscovery(topic: String, payload: String): DiscoveryResult {
+        for (p in prefixes) {
+            val r = DiscoveryParser.parse(p, topic, payload)
+            if (r !is DiscoveryResult.NotDiscovery) return r
+        }
+        return DiscoveryResult.NotDiscovery
+    }
+
     private fun replaceDiscovered(topic: String, items: List<DiscoveredEntity>?) {
         synchronized(lock) {
             if (items == null) discovered.remove(topic) else discovered[topic] = items
@@ -450,6 +462,7 @@ class MqttDiscoverySource(
 
     companion object {
         const val DEFAULT_PREFIX = "homeassistant"
+        const val HUB_PREFIX = "oikos"
         const val UI_PREFIX = "oikos/ui/"
         const val VOICE_PREFIX = "oikos/voice/shortcut/"
         const val AREAS_ID = "_areas"
