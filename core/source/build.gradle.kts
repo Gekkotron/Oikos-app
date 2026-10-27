@@ -7,6 +7,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":core:model"))
+            api(project(":core:flows"))
             api(project(":core:state"))
             api(libs.kotlinx.serialization.json)
         }
