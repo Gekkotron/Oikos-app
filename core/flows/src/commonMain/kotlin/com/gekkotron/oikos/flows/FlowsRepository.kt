@@ -43,6 +43,8 @@ class FlowsRepository(
     private val scope: CoroutineScope,
     private val settleAfter: Duration = 2.seconds,
     private val log: (String) -> Unit = {},
+    /** How long after a link-up a known flow has to be replayed by the broker before it is dropped. */
+    private val confirmAfter: Duration = 5.seconds,
 ) : FlowsSink {
 
     private class State(
@@ -53,6 +55,12 @@ class FlowsRepository(
         val inFlight: Map<String, Boolean> = emptyMap(),
         /** Retained echoes that arrived during a flight (null = deleted), applied at completion. */
         val echoes: Map<String, FlowDto?> = emptyMap(),
+        /**
+         * Rows known before the last link-up that the broker has not replayed since. A flow deleted
+         * while the link was down never gets its empty retained publish, so these are dropped once
+         * the replay window ([confirmAfter]) is over.
+         */
+        val unconfirmed: Set<String> = emptySet(),
         /** Bumped by every transform so a late publish can't overwrite a newer snapshot. */
         val version: Long = 0L,
     ) {
@@ -61,9 +69,10 @@ class FlowsRepository(
             settled: Boolean = this.settled,
             inFlight: Map<String, Boolean> = this.inFlight,
             echoes: Map<String, FlowDto?> = this.echoes,
-        ) = State(server, settled, inFlight, echoes, version)
+            unconfirmed: Set<String> = this.unconfirmed,
+        ) = State(server, settled, inFlight, echoes, unconfirmed, version)
 
-        fun withVersion(v: Long) = State(server, settled, inFlight, echoes, v)
+        fun withVersion(v: Long) = State(server, settled, inFlight, echoes, unconfirmed, v)
 
         fun toSnapshot() = FlowsSnapshot(
             isSettled = settled,
@@ -77,6 +86,7 @@ class FlowsRepository(
 
     private val state = MutableStateFlow(State())
     private val settleTimer = MutableStateFlow<Job?>(null)
+    private val confirmTimer = MutableStateFlow<Job?>(null)
 
     private val _flows = MutableStateFlow(state.value.toSnapshot())
     val flows: StateFlow<FlowsSnapshot> = _flows.asStateFlow()
@@ -106,16 +116,26 @@ class FlowsRepository(
         }
         update { s ->
             val settled = true // any retained message ends the burst
+            val unconfirmed = s.unconfirmed - id
             if (id in s.inFlight) {
-                s.copy(echoes = s.echoes + (id to dto), settled = settled)
+                s.copy(echoes = s.echoes + (id to dto), settled = settled, unconfirmed = unconfirmed)
             } else {
-                s.copy(server = if (dto == null) s.server - id else s.server + (id to dto), settled = settled)
+                s.copy(server = if (dto == null) s.server - id else s.server + (id to dto), settled = settled, unconfirmed = unconfirmed)
             }
         }
         cancelTimer()
     }
 
     override fun markLinkUp() {
+        // Every row now has to be replayed by the broker to stay; see [State.unconfirmed].
+        update { s -> s.copy(unconfirmed = s.server.keys) }
+        val confirm = scope.launch(start = CoroutineStart.LAZY) {
+            delay(confirmAfter)
+            update { s -> dropUnconfirmed(s) }
+        }
+        confirmTimer.getAndUpdate { confirm }?.cancel()
+        confirm.start()
+
         if (state.value.settled) return
         val job = scope.launch(start = CoroutineStart.LAZY) {
             delay(settleAfter)
@@ -125,9 +145,21 @@ class FlowsRepository(
         job.start()
     }
 
+    /** Treats every row still unconfirmed as deleted; a row with a toggle in flight is removed when it completes. */
+    private fun dropUnconfirmed(s: State): State {
+        if (s.unconfirmed.isEmpty()) return s
+        val (flying, idle) = s.unconfirmed.partition { it in s.inFlight }
+        return s.copy(
+            server = s.server - idle.toSet(),
+            echoes = s.echoes + flying.associateWith { null },
+            unconfirmed = emptySet(),
+        )
+    }
+
     override fun clear() {
         cancelTimer()
-        update { s -> s.copy(server = emptyMap(), settled = false, echoes = emptyMap()) }
+        confirmTimer.getAndUpdate { null }?.cancel()
+        update { s -> s.copy(server = emptyMap(), settled = false, echoes = emptyMap(), unconfirmed = emptySet()) }
     }
 
     private fun cancelTimer() {

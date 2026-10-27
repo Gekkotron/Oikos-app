@@ -238,4 +238,64 @@ class FlowsRepositoryTest {
         runCurrent()
         assertFalse(r.flows.value.isSettled)
     }
+
+    @Test
+    fun `a flow not replayed after a reconnect is dropped once the confirm window ends`() = runTest {
+        val r = repo()
+        r.onRetained("kept", payload("kept"))
+        r.onRetained("gone", payload("gone")) // deleted on the hub while the link was down
+        r.markLinkUp()
+        r.onRetained("kept", payload("kept")) // the broker's replay
+        advanceTimeBy(4_999)
+        runCurrent()
+        assertEquals(listOf("gone", "kept"), r.flows.value.flows.map { it.id })
+        advanceTimeBy(2)
+        runCurrent()
+        assertEquals(listOf("kept"), r.flows.value.flows.map { it.id })
+    }
+
+    @Test
+    fun `a new link-up restarts the confirm window`() = runTest {
+        val r = repo()
+        r.onRetained("a", payload("a"))
+        r.markLinkUp()
+        advanceTimeBy(4_000)
+        r.markLinkUp() // dropped and back before the replay came in
+        advanceTimeBy(4_000)
+        runCurrent()
+        assertEquals(listOf("a"), r.flows.value.flows.map { it.id })
+        r.onRetained("a", payload("a"))
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertEquals(listOf("a"), r.flows.value.flows.map { it.id })
+    }
+
+    @Test
+    fun `an unconfirmed flow with a toggle in flight is removed when the toggle completes`() = runTest {
+        val client = FakeClient().apply { gate = CompletableDeferred() }
+        val r = repo(client)
+        r.onRetained("a", payload("a", enabled = true))
+        r.markLinkUp()
+        val call = async { r.setEnabled("a", false) }
+        runCurrent()
+        advanceTimeBy(5_001)
+        runCurrent()
+        assertEquals(listOf(FlowDto("a", "a", enabled = false)), r.flows.value.flows) // still showing the optimistic value
+        client.gate!!.complete(Result.success(Unit))
+        call.await()
+        assertTrue(r.flows.value.flows.isEmpty())
+        assertTrue(r.flows.value.inFlight.isEmpty())
+    }
+
+    @Test
+    fun `clear cancels the confirm window`() = runTest {
+        val r = repo()
+        r.onRetained("a", payload("a"))
+        r.markLinkUp()
+        r.clear()
+        r.onRetained("b", payload("b"))
+        advanceTimeBy(6_000)
+        runCurrent()
+        assertEquals(listOf("b"), r.flows.value.flows.map { it.id })
+    }
 }
