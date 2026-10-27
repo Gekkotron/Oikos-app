@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.gekkotron.oikos.R
@@ -65,21 +66,21 @@ internal fun MainTabBar(
             selected = selected == HomeKey,
             onClick = { onSelect(HomeKey) },
             icon = { StaticIcon(OikosGlyph.HOUSE, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_home)) },
+            label = { Text(stringResource(R.string.nav_home), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
         NavigationBarItem(
             selected = selected == EnergyKey,
             onClick = { onSelect(EnergyKey) },
             icon = { StaticIcon(OikosGlyph.BOLT, accent = bolt, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_energy)) },
+            label = { Text(stringResource(R.string.nav_energy), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
         NavigationBarItem(
             selected = selected == SecurityKey,
             onClick = { onSelect(SecurityKey) },
             icon = { StaticIcon(OikosGlyph.SHIELD, accent = shield, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_security)) },
+            label = { Text(stringResource(R.string.nav_security), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
         if (showAutomations) {
@@ -87,7 +88,7 @@ internal fun MainTabBar(
                 selected = selected == AutomationsKey,
                 onClick = { onSelect(AutomationsKey) },
                 icon = { StaticIcon(OikosGlyph.AUTOMATION, modifier = Modifier.size(24.dp)) },
-                label = { Text(stringResource(R.string.nav_automations)) },
+                label = { Text(stringResource(R.string.nav_automations), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 colors = itemColors,
             )
         }

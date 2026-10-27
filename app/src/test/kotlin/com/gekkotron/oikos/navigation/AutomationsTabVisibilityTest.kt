@@ -23,6 +23,7 @@ import com.gekkotron.oikos.designsystem.icons.StaticIcon
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import kotlin.test.assertEquals
@@ -98,6 +99,23 @@ class AutomationsTabVisibilityTest {
         val bitmap = Bitmap.createBitmap(view.width.coerceAtLeast(1), view.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         view.draw(Canvas(bitmap))
         File("build/screenshots/automation-glyph.png").also { it.parentFile!!.mkdirs() }.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /** The longest label ("Automatisations") must fit its slot at 360dp in French; screenshot to build/screenshots. */
+    @Test
+    @Config(qualifiers = "fr-w360dp-h640dp-xxhdpi")
+    fun `the French tab bar fits four labels at 360dp`() {
+        compose.setContent { OikosTheme(ThemeChoice.NIGHT_GLASS) { OikosBackground { MainTabBar(selected = HomeKey, onSelect = {}, showAutomations = true) } } }
+        val label = compose.onNodeWithText("Automatisations", useUnmergedTree = true).fetchSemanticsNode()
+        val other = compose.onNodeWithText("Sécurité", useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(other.boundsInRoot.height, label.boundsInRoot.height, 0.5f)
+        assertTrue(label.boundsInRoot.right <= 360f * compose.activity.resources.displayMetrics.density)
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(300)
+        val view = compose.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(view.width.coerceAtLeast(1), view.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(bitmap))
+        File("build/screenshots/tab-bar-fr-360.png").also { it.parentFile!!.mkdirs() }.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.onAllNodesWithTextCount(text: String) =
