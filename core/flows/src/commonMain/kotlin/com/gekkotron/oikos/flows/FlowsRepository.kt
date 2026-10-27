@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -22,7 +23,10 @@ data class FlowsSnapshot(
     val isSettled: Boolean,
     val flows: List<FlowDto>,
     val inFlight: Set<String> = emptySet(),
-)
+) {
+    /** State version this snapshot was built from; lets the repository refuse stale publishes. */
+    internal var version: Long = 0L
+}
 
 /**
  * Flows as the hub publishes them (retained MQTT), plus an optimistic enable toggle.
@@ -44,13 +48,17 @@ class FlowsRepository(
         val inFlight: Map<String, Boolean> = emptyMap(),
         /** Retained echoes that arrived during a flight (null = deleted), applied at completion. */
         val echoes: Map<String, FlowDto?> = emptyMap(),
+        /** Bumped by every transform so a late publish can't overwrite a newer snapshot. */
+        val version: Long = 0L,
     ) {
         fun copy(
             server: Map<String, FlowDto> = this.server,
             settled: Boolean = this.settled,
             inFlight: Map<String, Boolean> = this.inFlight,
             echoes: Map<String, FlowDto?> = this.echoes,
-        ) = State(server, settled, inFlight, echoes)
+        ) = State(server, settled, inFlight, echoes, version)
+
+        fun withVersion(v: Long) = State(server, settled, inFlight, echoes, v)
 
         fun toSnapshot() = FlowsSnapshot(
             isSettled = settled,
@@ -58,7 +66,7 @@ class FlowsRepository(
                 .map { f -> inFlight[f.id]?.let { f.copy(enabled = it) } ?: f }
                 .sortedWith(compareBy<FlowDto> { it.name.lowercase() }.thenBy { it.id }),
             inFlight = inFlight.keys,
-        )
+        ).also { it.version = version }
     }
 
     private val state = MutableStateFlow(State())
@@ -68,9 +76,16 @@ class FlowsRepository(
     val flows: StateFlow<FlowsSnapshot> = _flows.asStateFlow()
 
     private fun update(transform: (State) -> State) {
-        state.update(transform)
-        _flows.value = state.value.toSnapshot()
+        publish(state.updateAndGet { s -> transform(s).withVersion(s.version + 1) })
     }
+
+    /** Publishes [s]'s snapshot unless a newer one is already out, so racing writers can't regress it. */
+    private fun publish(s: State) {
+        val snap = s.toSnapshot()
+        _flows.update { cur -> if (snap.version > cur.version) snap else cur }
+    }
+
+    internal fun currentStateSnapshot() = state.value.toSnapshot()
 
     override fun onRetained(id: String, payload: String?) {
         val dto: FlowDto? = if (payload.isNullOrEmpty()) {
@@ -123,9 +138,12 @@ class FlowsRepository(
             val cur = state.value
             if (id in cur.inFlight) return Result.success(Unit)
             val next = cur.copy(inFlight = cur.inFlight + (id to enabled), echoes = cur.echoes - id)
-            if (state.compareAndSet(cur, next)) break
+                .withVersion(cur.version + 1)
+            if (state.compareAndSet(cur, next)) {
+                publish(next)
+                break
+            }
         }
-        _flows.value = state.value.toSnapshot()
 
         val result = try {
             client.setEnabled(id, enabled)
