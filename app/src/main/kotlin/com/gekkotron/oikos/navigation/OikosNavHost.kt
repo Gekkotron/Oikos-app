@@ -31,6 +31,7 @@ import com.gekkotron.oikos.feature.alerts.ui.AlertDetailRoute
 import com.gekkotron.oikos.feature.alerts.ui.AlertsRoute
 import com.gekkotron.oikos.feature.alerts.ui.RecentAlertsEffects
 import com.gekkotron.oikos.feature.alerts.ui.RecentAlertsRoute
+import com.gekkotron.oikos.feature.automations.ui.AutomationsRoute
 import com.gekkotron.oikos.feature.energy.ui.EnergyRoute
 import com.gekkotron.oikos.feature.history.HistoryTarget
 import com.gekkotron.oikos.feature.history.ui.HistoryRoute
@@ -60,6 +61,9 @@ data object EnergyKey : NavKey
 
 @Serializable
 data object SecurityKey : NavKey
+
+@Serializable
+data object AutomationsKey : NavKey
 
 @Serializable
 data object SettingsKey : NavKey
@@ -164,6 +168,9 @@ fun OikosNavHost(viewModel: AppViewModel = hiltViewModel()) {
     }
     val top = backStack.lastOrNull()
     val tabs = showsTabBar(top)
+    // The demo has no hub: hide the tab, and leave it if the demo is switched on while it is open.
+    val showAutomations = (profile as? ProfileState.Ready)?.profile != ConnectionProfile.Demo
+    LaunchedEffect(showAutomations, top) { if (!showAutomations && top == AutomationsKey) selectTab(backStack, HomeKey) }
     // The bar owns the bottom inset on the main tabs; their own Scaffolds then only pad top and sides.
     val tabInsets = ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     Scaffold(
@@ -173,7 +180,7 @@ fun OikosNavHost(viewModel: AppViewModel = hiltViewModel()) {
             if (tabs) {
                 val tabsVm: MainTabsViewModel = hiltViewModel()
                 val status by tabsVm.status.collectAsStateWithLifecycle()
-                MainTabBar(selected = top, onSelect = { selectTab(backStack, it) }, status = status)
+                MainTabBar(selected = top, onSelect = { selectTab(backStack, it) }, status = status, showAutomations = showAutomations)
             }
         },
     ) { padding ->
@@ -231,6 +238,7 @@ fun OikosNavHost(viewModel: AppViewModel = hiltViewModel()) {
                         onOpenHistory = { id -> openHistory(id?.let(HistoryTarget::Entity) ?: HistoryTarget.House) },
                     )
                 }
+                entry<AutomationsKey> { AutomationsRoute(windowInsets = tabInsets) }
                 entry<AlertsKey> { AlertsRoute(onBack = { pop(backStack, AlertsKey) }, windowInsets = screenInsets(AlertsKey, tabInsets, ScaffoldDefaults.contentWindowInsets), deviceSheet = deviceSheet) }
                 entry<AlertDetailKey> { key -> AlertDetailRoute(key.id, onDismiss = { pop(backStack, key) }, deviceSheet = deviceSheet) }
                 entry<HistoryKey> { key ->

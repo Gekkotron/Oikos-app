@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.gekkotron.oikos.R
@@ -15,8 +16,8 @@ import com.gekkotron.oikos.designsystem.OikosTheme
 import com.gekkotron.oikos.designsystem.icons.OikosGlyph
 import com.gekkotron.oikos.designsystem.icons.StaticIcon
 
-/** Energy and Security sit on top of Home and replace each other, so back always returns to Home (security spec §5). */
-private val SIDE_TABS: Set<NavKey> = setOf(EnergyKey, SecurityKey)
+/** Energy, Security and Automations sit on top of Home and replace each other, so back always returns to Home (security spec §5). */
+private val SIDE_TABS: Set<NavKey> = setOf(EnergyKey, SecurityKey, AutomationsKey)
 
 internal fun selectTab(stack: MutableList<NavKey>, key: NavKey) {
     if (key == HomeKey) {
@@ -45,6 +46,8 @@ internal fun MainTabBar(
     selected: NavKey?,
     onSelect: (NavKey) -> Unit,
     status: TabStatus = TabStatus(),
+    /** False under the demo: it has no hub whose flows could be toggled. */
+    showAutomations: Boolean = true,
 ) {
     val colors = OikosTheme.colors
     val itemColors = NavigationBarItemDefaults.colors(
@@ -63,22 +66,31 @@ internal fun MainTabBar(
             selected = selected == HomeKey,
             onClick = { onSelect(HomeKey) },
             icon = { StaticIcon(OikosGlyph.HOUSE, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_home)) },
+            label = { Text(stringResource(R.string.nav_home), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
         NavigationBarItem(
             selected = selected == EnergyKey,
             onClick = { onSelect(EnergyKey) },
             icon = { StaticIcon(OikosGlyph.BOLT, accent = bolt, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_energy)) },
+            label = { Text(stringResource(R.string.nav_energy), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
         NavigationBarItem(
             selected = selected == SecurityKey,
             onClick = { onSelect(SecurityKey) },
             icon = { StaticIcon(OikosGlyph.SHIELD, accent = shield, modifier = Modifier.size(24.dp)) },
-            label = { Text(stringResource(R.string.nav_security)) },
+            label = { Text(stringResource(R.string.nav_security), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = itemColors,
         )
+        if (showAutomations) {
+            NavigationBarItem(
+                selected = selected == AutomationsKey,
+                onClick = { onSelect(AutomationsKey) },
+                icon = { StaticIcon(OikosGlyph.AUTOMATION, modifier = Modifier.size(24.dp)) },
+                label = { Text(stringResource(R.string.nav_automations), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = itemColors,
+            )
+        }
     }
 }

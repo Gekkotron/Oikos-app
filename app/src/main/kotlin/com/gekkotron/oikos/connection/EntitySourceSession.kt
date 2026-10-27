@@ -3,6 +3,7 @@ package com.gekkotron.oikos.connection
 import com.gekkotron.oikos.data.ConnectionProfile
 import com.gekkotron.oikos.data.DEFAULT_PREFIX
 import com.gekkotron.oikos.data.EntityCache
+import com.gekkotron.oikos.flows.FlowsSink
 import com.gekkotron.oikos.model.Diagnostic
 import com.gekkotron.oikos.model.DiagnosticSink
 import com.gekkotron.oikos.source.EntitySource
@@ -32,8 +33,10 @@ class EntitySourceSession(
     private val parent: CoroutineScope,
     private val diagnostics: DiagnosticSink = DiagnosticSink.None,
     private val cache: EntityCache? = null,
+    /** Receives the hub's automations from this (main) session's source; widgets and the setup check keep none. */
+    flowsSink: FlowsSink? = null,
     private val build: (MqttTransport, CoroutineScope, String, DiagnosticSink) -> EntitySource =
-        { transport, scope, prefix, diagnostics -> defaultBuild(transport, scope, prefix, diagnostics) },
+        { transport, scope, prefix, diagnostics -> defaultBuild(transport, scope, prefix, diagnostics, flowsSink) },
 ) {
     private var profile: ConnectionProfile? = null
     private var scope: CoroutineScope? = null
@@ -124,7 +127,12 @@ class EntitySourceSession(
     companion object {
         val SAVE_INTERVAL: Duration = 10.seconds
 
-        fun defaultBuild(transport: MqttTransport, scope: CoroutineScope, prefix: String, diagnostics: DiagnosticSink): EntitySource =
-            MqttDiscoverySource(transport, scope, prefix = prefix, diagnostics = diagnostics)
+        fun defaultBuild(
+            transport: MqttTransport,
+            scope: CoroutineScope,
+            prefix: String,
+            diagnostics: DiagnosticSink,
+            flowsSink: FlowsSink? = null,
+        ): EntitySource = MqttDiscoverySource(transport, scope, prefix = prefix, diagnostics = diagnostics, flowsSink = flowsSink)
     }
 }

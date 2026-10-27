@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automations_title">Automatisations</string>
+    <string name="automations_chip_all">Toutes</string>
+    <string name="automations_chip_unassigned">Non assignées</string>
+    <string name="automations_empty_title">Aucune automatisation</string>
+    <string name="automations_empty_body">Créez-en une depuis l\'interface web d\'Oikos-OS.</string>
+    <string name="automations_offline_banner">Hors ligne — état figé</string>
+    <string name="automations_toggle_failed">Impossible de modifier l\'automatisation</string>
+    <string name="automations_loading">Chargement des automatisations</string>
+</resources>

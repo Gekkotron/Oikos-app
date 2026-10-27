@@ -1,5 +1,6 @@
 package com.gekkotron.oikos.source
 
+import com.gekkotron.oikos.flows.FlowsSink
 import com.gekkotron.oikos.model.Area
 import com.gekkotron.oikos.model.AreasDocument
 import com.gekkotron.oikos.model.Command
@@ -44,6 +45,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -64,6 +68,7 @@ class MqttDiscoverySource(
     private val diagnostics: DiagnosticSink = DiagnosticSink.None,
     commandTimeout: Duration = 5.seconds,
     now: () -> Instant = Instant::now,
+    private val flowsSink: FlowsSink? = null,
 ) : EntitySource {
     private val store = StateStore(now, diagnostics)
     private val tracker = CommandTracker(store, scope, commandTimeout)
@@ -123,6 +128,12 @@ class MqttDiscoverySource(
     private class Snapshot(val entities: Map<String, Entity>, val devices: Map<String, Device>, val areas: List<Area>)
 
     init {
+        if (flowsSink != null) {
+            flowsSink.clear()
+            scope.launch {
+                link.map { it is LinkState.Connected }.distinctUntilChanged().filter { it }.collect { flowsSink.markLinkUp() }
+            }
+        }
         // Undispatched so the collector is subscribed before any subscription can replay retained messages.
         scope.launch(start = CoroutineStart.UNDISPATCHED) { transport.messages().collect { handle(it) } }
         scope.launch {
@@ -312,6 +323,8 @@ class MqttDiscoverySource(
         val topic = message.topic
         try {
             val payload = message.payloadString()
+            val flowId = flowIdOf(topic)
+            if (flowId != null && restored) return // flows are never cached; the broker's retained replay is the truth
             if (restored) {
                 if (settled || topic in liveTopics) return
                 restoredOnly += topic
@@ -322,6 +335,7 @@ class MqttDiscoverySource(
             }
             if (payload.isEmpty()) payloads.remove(topic) else payloads[topic] = payload
             when {
+                flowId != null -> flowsSink?.onRetained(flowId, payload.ifEmpty { null })
                 topic == AREAS_TOPIC -> onAreas(payload)
                 topic.startsWith(UI_PREFIX) -> onOverride(topic.removePrefix(UI_PREFIX), payload)
                 topic.startsWith(VOICE_PREFIX) -> onShortcut(topic.removePrefix(VOICE_PREFIX), payload)
@@ -486,6 +500,10 @@ class MqttDiscoverySource(
 
     private fun report(message: String) = diagnostics.report(Diagnostic("discovery", message))
 
+    /** The flow id of an `oikos/automation/<id>` topic (exactly one non-empty segment after the prefix), else null. */
+    private fun flowIdOf(topic: String): String? =
+        topic.takeIf { it.startsWith(FLOW_PREFIX) }?.removePrefix(FLOW_PREFIX)?.takeIf { it.isNotEmpty() && '/' !in it }
+
     private fun hubGroupIdOf(topic: String): String =
         topic.removePrefix(HUB_GROUP_PREFIX).removeSuffix(HUB_GROUP_DEFINITION_SUFFIX)
 
@@ -494,6 +512,7 @@ class MqttDiscoverySource(
         const val HUB_PREFIX = "oikos"
         const val UI_PREFIX = "oikos/ui/"
         const val VOICE_PREFIX = "oikos/voice/shortcut/"
+        const val FLOW_PREFIX = "$HUB_PREFIX/automation/"
         const val HUB_GROUP_PREFIX = "oikos/group/"
         const val HUB_GROUP_DEFINITION_SUFFIX = "/definition"
         const val AREAS_ID = "_areas"
