@@ -15,8 +15,8 @@ import com.gekkotron.oikos.designsystem.OikosTheme
 import com.gekkotron.oikos.designsystem.icons.OikosGlyph
 import com.gekkotron.oikos.designsystem.icons.StaticIcon
 
-/** Energy and Security sit on top of Home and replace each other, so back always returns to Home (security spec §5). */
-private val SIDE_TABS: Set<NavKey> = setOf(EnergyKey, SecurityKey)
+/** Energy, Security and Automations sit on top of Home and replace each other, so back always returns to Home (security spec §5). */
+private val SIDE_TABS: Set<NavKey> = setOf(EnergyKey, SecurityKey, AutomationsKey)
 
 internal fun selectTab(stack: MutableList<NavKey>, key: NavKey) {
     if (key == HomeKey) {
@@ -45,6 +45,8 @@ internal fun MainTabBar(
     selected: NavKey?,
     onSelect: (NavKey) -> Unit,
     status: TabStatus = TabStatus(),
+    /** False under the demo: it has no hub whose flows could be toggled. */
+    showAutomations: Boolean = true,
 ) {
     val colors = OikosTheme.colors
     val itemColors = NavigationBarItemDefaults.colors(
@@ -80,5 +82,14 @@ internal fun MainTabBar(
             label = { Text(stringResource(R.string.nav_security)) },
             colors = itemColors,
         )
+        if (showAutomations) {
+            NavigationBarItem(
+                selected = selected == AutomationsKey,
+                onClick = { onSelect(AutomationsKey) },
+                icon = { StaticIcon(OikosGlyph.AUTOMATION, modifier = Modifier.size(24.dp)) },
+                label = { Text(stringResource(R.string.nav_automations)) },
+                colors = itemColors,
+            )
+        }
     }
 }

@@ -3,5 +3,6 @@
     <string name="nav_home">Accueil</string>
     <string name="nav_energy">Énergie</string>
     <string name="nav_security">Sécurité</string>
+    <string name="nav_automations">Automatisations</string>
     <string name="device_save_failed">Impossible d\'enregistrer la modification. Vérifiez la connexion.</string>
 </resources>
