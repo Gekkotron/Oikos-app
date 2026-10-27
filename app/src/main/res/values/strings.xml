@@ -3,6 +3,6 @@
     <string name="nav_home">Home</string>
     <string name="nav_energy">Energy</string>
     <string name="nav_security">Security</string>
-    <string name="nav_automations">Automations</string>
+    <string name="nav_automations">Flows</string>
     <string name="device_save_failed">Couldn\'t save the change. Check the connection.</string>
 </resources>
