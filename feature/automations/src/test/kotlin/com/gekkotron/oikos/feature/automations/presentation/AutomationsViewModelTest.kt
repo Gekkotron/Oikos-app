@@ -116,10 +116,19 @@ class AutomationsViewModelTest {
     fun `flow with area=null falls into Unassigned bucket`() = runTest(dispatcher) {
         val (vm, repo) = vm()
         repo.flow("a", "A")
+        repo.flow("b", "B", "kitchen")
+        repo.flow("c", "C", "living")
         assertEquals(
             listOf(AutomationChip.All, AutomationChip.Room("living", "Living room"), AutomationChip.Room("kitchen", "Kitchen"), AutomationChip.Unassigned),
             vm.state.value.chips,
         )
+    }
+
+    @Test
+    fun `a room without flows gets no chip`() = runTest(dispatcher) {
+        val (vm, repo) = vm()
+        repo.flow("a", "A", "living")
+        assertEquals(listOf("__all__", "living"), vm.state.value.chips.map { it.key })
     }
 
     @Test
@@ -134,6 +143,7 @@ class AutomationsViewModelTest {
         areas.value = areas.value + Area(UNASSIGNED_AREA, "Unassigned")
         val (vm, repo) = vm()
         repo.flow("a", "A", "living")
+        repo.flow("b", "B", "kitchen")
         assertEquals(listOf("__all__", "living", "kitchen"), vm.state.value.chips.map { it.key })
     }
 
@@ -141,9 +151,10 @@ class AutomationsViewModelTest {
     fun `vanished selected chip falls back to All`() = runTest(dispatcher) {
         val (vm, repo) = vm()
         repo.flow("a", "A", "living")
+        repo.flow("b", "B", "kitchen")
         vm.onChipSelected("kitchen")
         assertEquals("kitchen", vm.state.value.selectedChipKey)
-        areas.value = listOf(Area("living", "Living room"))
+        repo.onRetained("b", null)
         assertEquals(ALL_KEY, vm.state.value.selectedChipKey)
         assertEquals(listOf("a"), vm.state.value.rows.map { it.id })
     }

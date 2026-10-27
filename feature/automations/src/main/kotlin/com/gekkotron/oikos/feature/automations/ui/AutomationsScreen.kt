@@ -41,7 +41,10 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,18 +103,21 @@ fun AutomationsScreen(
                     stringResource(R.string.automations_offline_banner),
                     style = OikosTheme.type.label,
                     color = OikosTheme.colors.contentMuted,
-                    modifier = Modifier.padding(start = start, end = end, top = 8.dp),
+                    modifier = Modifier.padding(start = start, end = end, top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             Spacer(Modifier.height(8.dp))
             AutomationChips(state, onChipSelected, Modifier.padding(horizontal = 16.dp))
+            val loadingLabel = stringResource(R.string.automations_loading)
             val listPadding = PaddingValues(start = start, end = end, top = 12.dp, bottom = padding.calculateBottomPadding() + 24.dp)
             when {
                 state.isLoading && state.rows.isEmpty() -> LazyColumn(
+                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = loadingLabel },
                     contentPadding = listPadding,
                     verticalArrangement = Arrangement.spacedBy(OikosDimens.gridGap),
                 ) { items(PLACEHOLDER_ROWS) { PlaceholderRow() } }
-                state.rows.isEmpty() -> EmptyState(Modifier.fillMaxSize())
+                // Offline with nothing cached means "not heard from the hub yet", not "no automations".
+                state.rows.isEmpty() -> if (!state.isOffline) EmptyState(Modifier.fillMaxSize())
                 else -> LazyColumn(
                     contentPadding = listPadding,
                     verticalArrangement = Arrangement.spacedBy(OikosDimens.gridGap),

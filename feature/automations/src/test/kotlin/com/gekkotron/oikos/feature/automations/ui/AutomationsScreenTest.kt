@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -73,7 +74,9 @@ class AutomationsScreenTest {
     @Test
     fun `placeholders while loading and no empty copy`() {
         show(state(isLoading = true, rows = emptyList()))
-        assertTrue(compose.onAllNodesWithTag("automations-placeholder").fetchSemanticsNodes().isNotEmpty())
+        // The placeholder block is one merged node announced as "loading", so its tiles only show in the unmerged tree.
+        assertTrue(compose.onAllNodesWithTag("automations-placeholder", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        compose.onNodeWithContentDescription(text(R.string.automations_loading)).assertExists()
         compose.onNodeWithText(text(R.string.automations_empty_title)).assertDoesNotExist()
     }
 
@@ -83,6 +86,14 @@ class AutomationsScreenTest {
         compose.onNodeWithText(text(R.string.automations_empty_title)).assertExists()
         compose.onNodeWithText(text(R.string.automations_empty_body)).assertExists()
         assertTrue(compose.onAllNodesWithTag("automations-placeholder").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun `offline with no rows shows the banner but no empty copy`() {
+        show(state(isOffline = true, rows = emptyList()))
+        compose.onNodeWithText(text(R.string.automations_offline_banner)).assertExists()
+        compose.onNodeWithText(text(R.string.automations_empty_title)).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.automations_empty_body)).assertDoesNotExist()
     }
 
     @Test

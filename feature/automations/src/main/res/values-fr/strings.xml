@@ -7,4 +7,5 @@
     <string name="automations_empty_body">Créez-en une depuis l\'interface web d\'Oikos-OS.</string>
     <string name="automations_offline_banner">Hors ligne — état figé</string>
     <string name="automations_toggle_failed">Impossible de modifier l\'automatisation</string>
+    <string name="automations_loading">Chargement des automatisations</string>
 </resources>

@@ -7,4 +7,5 @@
     <string name="automations_empty_body">Create one from the Oikos-OS web interface.</string>
     <string name="automations_offline_banner">Offline — state is frozen</string>
     <string name="automations_toggle_failed">Could not update the automation</string>
+    <string name="automations_loading">Loading automations</string>
 </resources>

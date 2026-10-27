@@ -73,7 +73,9 @@ class AutomationsViewModel internal constructor(
         val hasUnassigned = snap.flows.any { roomOf(it.area) == null }
         val chips = buildList {
             add(AutomationChip.All)
-            rooms.forEach { add(AutomationChip.Room(it.id, it.name)) }
+            // Only rooms with at least one flow, like Home only shows rooms in use.
+            val used = snap.flows.mapNotNull { roomOf(it.area)?.second?.id }.toSet()
+            rooms.filter { it.id in used }.forEach { add(AutomationChip.Room(it.id, it.name)) }
             if (hasUnassigned) add(AutomationChip.Unassigned)
         }
         val selectedKey = if (chips.any { it.key == sel }) sel else ALL_KEY
