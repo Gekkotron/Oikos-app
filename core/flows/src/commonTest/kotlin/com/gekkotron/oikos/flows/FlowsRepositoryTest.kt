@@ -102,6 +102,56 @@ class FlowsRepositoryTest {
     }
 
     @Test
+    fun `cancelling the caller does not cancel the request`() = runTest {
+        val client = FakeClient().apply { gate = CompletableDeferred() }
+        val r = repo(client)
+        r.onRetained("a", payload("a", enabled = true))
+        val call = async { r.setEnabled("a", false) }
+        runCurrent()
+        call.cancel()
+        runCurrent()
+        assertEquals(setOf("a"), r.flows.value.inFlight)
+        client.gate!!.complete(Result.success(Unit))
+        runCurrent()
+        assertTrue(r.flows.value.inFlight.isEmpty())
+        assertFalse(r.flows.value.flows.single().enabled)
+    }
+
+    @Test
+    fun `cancelling the caller then a failing request still reverts`() = runTest {
+        val client = FakeClient().apply { gate = CompletableDeferred() }
+        val r = repo(client)
+        r.onRetained("a", payload("a", enabled = true))
+        val call = async { r.setEnabled("a", false) }
+        runCurrent()
+        call.cancel()
+        client.gate!!.complete(Result.failure(RuntimeException("boom")))
+        runCurrent()
+        assertTrue(r.flows.value.inFlight.isEmpty())
+        assertTrue(r.flows.value.flows.single().enabled)
+    }
+
+    @Test
+    fun `a throwing client reverts, clears in-flight and returns failure`() = runTest {
+        val client = object : FlowsClient {
+            override suspend fun setEnabled(id: String, enabled: Boolean): Result<Unit> = throw IllegalStateException("boom")
+        }
+        val r = repo(client)
+        r.onRetained("a", payload("a", enabled = true))
+        assertTrue(r.setEnabled("a", false).isFailure)
+        assertTrue(r.flows.value.flows.single().enabled)
+        assertTrue(r.flows.value.inFlight.isEmpty())
+    }
+
+    @Test
+    fun `malformed payload is logged`() = runTest {
+        val logged = mutableListOf<String>()
+        val r = FlowsRepository(FakeClient(), backgroundScope, log = { logged += it })
+        r.onRetained("a", "{not json")
+        assertEquals(1, logged.size)
+    }
+
+    @Test
     fun `in-flight toggle ignores further setEnabled on the same id`() = runTest {
         val client = FakeClient().apply { gate = CompletableDeferred() }
         val r = repo(client)

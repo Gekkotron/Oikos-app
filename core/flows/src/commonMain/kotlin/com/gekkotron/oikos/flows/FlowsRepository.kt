@@ -3,6 +3,7 @@ package com.gekkotron.oikos.flows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,7 @@ class FlowsRepository(
     private val client: FlowsClient,
     private val scope: CoroutineScope,
     private val settleAfter: Duration = 2.seconds,
+    private val log: (String) -> Unit = {},
 ) : FlowsSink {
 
     private class State(
@@ -98,7 +100,7 @@ class FlowsRepository(
             try {
                 flowsJson.decodeFromString<FlowDto>(payload).copy(id = id) // topic is authoritative
             } catch (e: Exception) {
-                println("warn: flows: dropping malformed payload for '$id': ${e.message}")
+                log("dropping malformed payload for '$id': ${e.message}")
                 return
             }
         }
@@ -149,16 +151,20 @@ class FlowsRepository(
             }
         }
 
-        val result = try {
-            client.setEnabled(id, enabled)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            finish(id, enabled, succeeded = false)
-            throw e
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-        finish(id, enabled, succeeded = result.isSuccess)
-        return result
+        // The request and its reconciliation run in the repository's own scope: cancelling the caller
+        // (e.g. its ViewModel being cleared) only stops waiting, it must not abort the request.
+        return scope.async {
+            val result = try {
+                client.setEnabled(id, enabled)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                finish(id, enabled, succeeded = false)
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            finish(id, enabled, succeeded = result.isSuccess)
+            result
+        }.await()
     }
 
     private fun finish(id: String, enabled: Boolean, succeeded: Boolean) = update { s ->

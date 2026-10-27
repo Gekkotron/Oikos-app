@@ -37,6 +37,6 @@ object FlowsModule {
             },
             post = { url, json -> lanOrGateway.post(url, json) },
         )
-        return FlowsRepository(client, scope)
+        return FlowsRepository(client, scope, log = { Log.w("OikosFlows", it) })
     }
 }
