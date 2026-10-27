@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -143,7 +145,16 @@ private fun AutomationTile(row: AutomationRow, onToggle: (String, Boolean) -> Un
         AreaLabel.Unassigned -> stringResource(R.string.automations_chip_unassigned)
         null -> null
     }
-    OikosCard(Modifier.fillMaxWidth(), minHeight = 0.dp) {
+    // The whole tile is the switch, so TalkBack reads "<name>, <area>, switch, on/off" and the tile is the touch target.
+    OikosCard(
+        Modifier.fillMaxWidth().toggleable(
+            value = row.enabled,
+            enabled = row.toggleEnabled,
+            role = Role.Switch,
+            onValueChange = { onToggle(row.id, it) },
+        ),
+        minHeight = 0.dp,
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(row.name, style = OikosTheme.type.cardName, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -153,7 +164,7 @@ private fun AutomationTile(row: AutomationRow, onToggle: (String, Boolean) -> Un
             }
             Switch(
                 checked = row.enabled,
-                onCheckedChange = { onToggle(row.id, it) },
+                onCheckedChange = null,
                 enabled = row.toggleEnabled,
                 modifier = Modifier.padding(start = 12.dp),
             )

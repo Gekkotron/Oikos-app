@@ -122,6 +122,12 @@ class AutomationsScreenTest {
     }
 
     @Test
+    fun `row switch is named by the flow name`() {
+        show(state())
+        compose.onNode(isToggleable() and androidx.compose.ui.test.hasText("Evening lights")).assertExists()
+    }
+
+    @Test
     fun `clicking a switch requests the opposite state`() {
         show(state())
         compose.onAllNodes(isToggleable())[0].performClick()
