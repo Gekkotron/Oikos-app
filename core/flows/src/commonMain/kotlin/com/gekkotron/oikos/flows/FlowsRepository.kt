@@ -23,10 +23,13 @@ data class FlowsSnapshot(
     val isSettled: Boolean,
     val flows: List<FlowDto>,
     val inFlight: Set<String> = emptySet(),
-) {
-    /** State version this snapshot was built from; lets the repository refuse stale publishes. */
-    internal var version: Long = 0L
-}
+    /**
+     * Version of the repository state this was built from. It takes part in equality on purpose:
+     * the repository refuses stale publishes by version, and two snapshots with equal content but
+     * different versions must not collapse into one stored value.
+     */
+    val version: Long = 0L,
+)
 
 /**
  * Flows as the hub publishes them (retained MQTT), plus an optimistic enable toggle.
@@ -66,7 +69,8 @@ class FlowsRepository(
                 .map { f -> inFlight[f.id]?.let { f.copy(enabled = it) } ?: f }
                 .sortedWith(compareBy<FlowDto> { it.name.lowercase() }.thenBy { it.id }),
             inFlight = inFlight.keys,
-        ).also { it.version = version }
+            version = version,
+        )
     }
 
     private val state = MutableStateFlow(State())

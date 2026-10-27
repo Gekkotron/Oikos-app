@@ -35,7 +35,9 @@ class FlowsRepositoryConcurrencyTest {
                 }
             }
             jobs.awaitAll()
-            assertEquals(repo.currentStateSnapshot(), repo.flows.value)
+            val expected = repo.currentStateSnapshot()
+            assertEquals(expected.version, repo.flows.value.version)
+            assertEquals(expected, repo.flows.value)
         }
     }
 }
