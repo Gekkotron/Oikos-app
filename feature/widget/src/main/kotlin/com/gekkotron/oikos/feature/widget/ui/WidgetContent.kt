@@ -124,7 +124,7 @@ internal fun TileSnapshot.isOn(now: Long): Boolean {
         is TileValue.Light -> v.on
         is TileValue.OnOff -> kind == Kind.SWITCH && v.on
         is TileValue.Cover -> v.state == CoverState.OPEN || v.state == CoverState.OPENING || v.state == CoverState.CLOSING ||
-            (v.state == CoverState.STOPPED && (v.position ?: 0) > 0)
+            (v.state == CoverState.STOPPED && v.position != 0)
         is TileValue.Climate -> v.mode != null && v.mode != "off"
         is TileValue.Alarm -> v.state != AlarmState.DISARMED && v.state != AlarmState.DISARMING
         else -> false

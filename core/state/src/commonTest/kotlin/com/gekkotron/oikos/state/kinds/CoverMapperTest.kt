@@ -92,6 +92,28 @@ class CoverMapperTest {
     }
 
     @Test
+    fun `a known position overrides a contradicting open or closed state`() {
+        assertEquals(Decoded.State(Cover(CoverState.OPEN, 50)), CoverMapper.decode(z2m, "z", """{"position":50,"state":"CLOSE"}""", Unknown))
+        assertEquals(Decoded.State(Cover(CoverState.CLOSED, 0)), CoverMapper.decode(z2m, "z", """{"position":0,"state":"OPEN"}""", Unknown))
+    }
+
+    @Test
+    fun `a state on its own topic does not contradict the last known position`() {
+        val b = bindings("cover", """{"state_topic":"s","position_topic":"p"}""")
+        val halfOpen = (CoverMapper.decode(b, "p", "50", Unknown) as Decoded.State).value
+        assertEquals(Decoded.State(Cover(CoverState.OPEN, 50)), CoverMapper.decode(b, "s", "closed", halfOpen))
+        assertEquals(Decoded.State(Cover(CoverState.OPEN, 50)), CoverMapper.decode(b, "s", "stopped", halfOpen))
+        assertEquals(Decoded.State(Cover(CoverState.CLOSING, 50)), CoverMapper.decode(b, "s", "closing", halfOpen))
+    }
+
+    @Test
+    fun `without a position the reported state is kept`() {
+        val b = bindings("cover", """{"state_topic":"s"}""")
+        assertEquals(Decoded.State(Cover(CoverState.STOPPED)), CoverMapper.decode(b, "s", "stopped", Unknown))
+        assertEquals(Decoded.State(Cover(CoverState.CLOSED)), CoverMapper.decode(b, "s", "closed", Unknown))
+    }
+
+    @Test
     fun `a moving field is ignored when the cover's template does not read it`() {
         assertEquals(
             Decoded.State(Cover(CoverState.OPEN, 42)),

@@ -254,7 +254,8 @@ object HomeUiBuilder {
         is StateValue.Light -> v.on
         is StateValue.OnOff -> kind == Kind.SWITCH && v.on
         is StateValue.Cover -> v.state == CoverState.OPEN || v.state == CoverState.OPENING ||
-            (v.state == CoverState.STOPPED && (v.position ?: 0) > 0)
+            // Stopped midway is open (as in Home Assistant), also for a shutter that reports no position.
+            (v.state == CoverState.STOPPED && v.position != 0)
         is StateValue.Climate -> v.mode != null && v.mode != "off"
         else -> false
     }

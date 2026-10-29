@@ -122,6 +122,15 @@ class RoomGroupsTest {
     }
 
     @Test
+    fun `a shutter stopped midway counts open, with or without a position`() {
+        val s = build(
+            shutter("a", position = false), shutter("b"), shutter("c"),
+            states = mapOf(cover("a", CoverState.STOPPED, null), cover("b", CoverState.STOPPED, 30), cover("c", CoverState.STOPPED, 0)),
+        )
+        assertEquals(2, (s.cards.single().value as CardValue.CoverGroup).open)
+    }
+
+    @Test
     fun `opening wins over closing when members move both ways`() {
         val s = build(shutter("a"), shutter("b"), states = mapOf(cover("a", CoverState.OPENING, 10), cover("b", CoverState.CLOSING, 90)))
         assertEquals(CoverState.OPENING, (s.cards.single().value as CardValue.CoverGroup).moving)

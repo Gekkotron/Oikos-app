@@ -155,6 +155,8 @@ class TileIsOnTest {
         assert(tile(Kind.LIGHT, TileValue.Light(true, 40)).isOn(now))
         assert(tile(Kind.SWITCH, TileValue.OnOff(true)).isOn(now))
         assert(tile(Kind.COVER, TileValue.Cover(CoverState.OPEN, 100)).isOn(now))
+        // A shutter stopped midway is open, even one that reports no position.
+        assert(tile(Kind.COVER, TileValue.Cover(CoverState.STOPPED, null)).isOn(now))
         assert(tile(Kind.ALARM_PANEL, TileValue.Alarm(com.gekkotron.oikos.model.AlarmState.ARMED_AWAY)).isOn(now))
     }
 

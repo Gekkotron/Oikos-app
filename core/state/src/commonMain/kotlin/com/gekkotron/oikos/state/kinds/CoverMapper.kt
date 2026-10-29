@@ -39,7 +39,17 @@ object CoverMapper : KindMapper {
                 true
             }
         }
-        return parts.result(cover)
+        return parts.result(reconcile(cover))
+    }
+
+    /**
+     * A known position is the finer signal: a cover at 50 % is open whatever its state says (some devices
+     * keep reporting CLOSE after a partial open). Moving states are kept; without a position, the state is.
+     */
+    private fun reconcile(cover: StateValue.Cover): StateValue.Cover {
+        val pct = cover.position ?: return cover
+        if (cover.state == CoverState.OPENING || cover.state == CoverState.CLOSING) return cover
+        return cover.copy(state = if (pct == 0) CoverState.CLOSED else CoverState.OPEN)
     }
 
     /**
