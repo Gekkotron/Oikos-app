@@ -45,6 +45,7 @@ import com.gekkotron.oikos.feature.onboarding.ui.OnboardingRoute
 import com.gekkotron.oikos.feature.settings.licences.LicencesRoute
 import com.gekkotron.oikos.feature.settings.rooms.RoomOrderRoute
 import com.gekkotron.oikos.feature.settings.ui.SettingsRoute
+import com.gekkotron.oikos.presence.WarnBackgroundDataOnLaunch
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -146,6 +147,9 @@ fun OikosNavHost(viewModel: AppViewModel = hiltViewModel()) {
     LaunchedEffect(root) { resetToRoot(backStack, root) }
     // Push alerts need the permission; the onboarding step only runs once, so a launch on Home still asks while it is missing.
     if (root == HomeKey && (profile as? ProfileState.Ready)?.profile is ConnectionProfile.Direct) AskForNotificationsOnLaunch()
+    // Presence away events wait for Wi-Fi while background data is blocked; say so at every launch until it is fixed.
+    val presence by viewModel.presence.collectAsStateWithLifecycle()
+    if (root == HomeKey) WarnBackgroundDataOnLaunch(presence)
     // Declared after resetToRoot's effect, so a cold start has its Home stack before the sheet is pushed on it.
     LaunchedEffect(pendingLink, root) {
         val link = pendingLink ?: return@LaunchedEffect

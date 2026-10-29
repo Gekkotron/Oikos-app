@@ -5,4 +5,8 @@
     <string name="nav_security">Security</string>
     <string name="nav_automations">Flows</string>
     <string name="device_save_failed">Couldn\'t save the change. Check the connection.</string>
+    <string name="presence_background_data_title">Presence can\'t report away from Wi-Fi</string>
+    <string name="presence_background_data_body">Background data is off for Oikos, so when you leave home on mobile data the alarm only learns it once you\'re back on Wi-Fi. Turn on Background data to let presence arm the alarm.</string>
+    <string name="presence_background_data_open">Open settings</string>
+    <string name="presence_background_data_later">Not now</string>
 </resources>

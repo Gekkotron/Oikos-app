@@ -6,6 +6,7 @@ import com.gekkotron.oikos.connection.EntitySourceSession
 import com.gekkotron.oikos.connection.routeChoice
 import com.gekkotron.oikos.connection.toPreference
 import com.gekkotron.oikos.data.AppPreferences
+import com.gekkotron.oikos.data.PresenceConfig
 import com.gekkotron.oikos.data.ProfileRepository
 import com.gekkotron.oikos.data.ProfileState
 import com.gekkotron.oikos.data.ThemePreference
@@ -48,6 +49,9 @@ class AppViewModel @Inject constructor(
     val theme: StateFlow<ThemeChoice?> = preferences.theme
         .map { it?.toChoice() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, preferences.theme.value?.toChoice())
+
+    /** This phone's presence settings; null until the store has loaded. */
+    val presence: StateFlow<PresenceConfig?> = preferences.presence
 
     /** The link sheet's route row; null hides it (no gateway in the profile). */
     val route: StateFlow<Route?> =
