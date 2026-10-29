@@ -5,4 +5,8 @@
     <string name="nav_security">Sécurité</string>
     <string name="nav_automations">Flows</string>
     <string name="device_save_failed">Impossible d\'enregistrer la modification. Vérifiez la connexion.</string>
+    <string name="presence_background_data_title">La présence ne fonctionne pas hors Wi-Fi</string>
+    <string name="presence_background_data_body">Les données en arrière-plan sont désactivées pour Oikos : quand vous partez en données mobiles, l\'alarme ne l\'apprend qu\'à votre retour sur le Wi-Fi. Activez les données en arrière-plan pour que la présence puisse armer l\'alarme.</string>
+    <string name="presence_background_data_open">Ouvrir les réglages</string>
+    <string name="presence_background_data_later">Plus tard</string>
 </resources>
